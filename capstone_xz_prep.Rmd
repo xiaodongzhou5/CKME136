@@ -1,0 +1,592 @@
+---
+title: "capstone"
+output: word_document
+---
+
+#install R packages
+# define RTOOL path
+```{r}
+#install.packages('RTool')
+library(RTool)
+#writeLINES('PATH="${RTooLS40_HOME}\\usr\\bin;${PATH}"', con = "~/Reviron")
+#Sys.which("make")
+## "C:\\rtools40\\usr\\bin\\make.exe"
+
+install.packages('plyr')
+library(plyr)
+install.packages('dplyr')
+library(dplyr)
+install.packages('ggplot2')
+library(ggplot2)
+install.packages('sqldf')
+library(sqldf)
+install.packages('dlookr')
+library(dlookr)
+install.packages("Hmisc")
+library(Hmisc)
+```
+#read files
+```{r}
+#data <- read.csv(file ='c:/work/CELL5M_data.csv')
+#str(data)
+Vop <- read.csv(file ='c:/work/source/Agriculture_Crops_vopagg.csv')
+Zone <- read.csv(file ='c:/work/source/Agroecology_Agro-EcologicalZones.csv')
+Climate <- read.csv(file ='c:/work/source/Agroecology_Climate.csv')
+Elev <- read.csv(file ='c:/work/source/Agroecology_Elevation.csv')
+FmSys <- read.csv(file ='c:/work/source/Agroecology_FarmingSystems.csv')
+Soil <- read.csv(file ='c:/work/source/Agroecology_SoilResources.csv')
+Income <- read.csv(file ='c:/work/source/Demographics_Income.csv')
+Population <- read.csv(file ='c:/work/source/Demographics_Population.csv')  
+Market <- read.csv(file ='c:/work/source/markets_foxp.csv')
+
+```
+
+#subset 
+```{r}
+library(dplyr)
+Vop_sub <- Vop %>%
+  select(cell5m, x, y, vp_cr_ar_r)
+Zone_sub <- Zone %>%
+  select(CELL5M, AEZ8_CLAS, AEZ16_CLAS)
+Climate_sub <- Climate %>%
+  select(CELL5M, pre_mean, LGP_AVG)
+Elev_sub <- Elev %>%
+  select(CELL5M, ELEVATION, SLOPE)
+FmSys_sub <- FmSys %>%
+  select(CELL5M, FS_2012_TX)
+Soil_sub <- Soil %>%
+  select(CELL5M, soc_d5, soc_d15, soc_d30, soc_d60, soc_d100, soc_d200)
+Population_sub <- Population %>%
+  select(CELL5M, PN05_TOT, PN05_RUR)
+Income_sub <- Income %>%
+  select(CELL5M, RPCX08_11)
+Market_sub <- Market %>%
+  select(CELL5M, TT_PORT, TT_20K)
+
+
+```
+
+#change Vop_sub primary key names
+```{r}
+Vop_sub <- rename(Vop_sub, CELL5M = cell5m)
+```
+
+#left join to Vop_sub
+```{r}
+vz <- left_join(x = Vop_sub, y = Zone_sub, by = "CELL5M")
+vzc <-  left_join(x = vz, y = Climate_sub, by = "CELL5M")
+vzce <- left_join(x = vzc, y = Elev_sub, by = "CELL5M")
+vzcef <- left_join(x = vzce, y = FmSys_sub, by = "CELL5M" )
+vzcefs <- left_join(x = vzcef, y = Soil_sub, by = "CELL5M")
+vzcefsp <- left_join(x = vzcefs, y = Population_sub, by = "CELL5M")
+vzcefspi <- left_join(x = vzcefsp, y = Income_sub, by = "CELL5M")
+vzcefspim <- left_join(x = vzcefspi, y = Market_sub, by = "CELL5M")
+str(vzcefspim)
+write.csv(vzcefspim, 'c:/work/source/cell5m_22.csv')
+data22 <- vzcefspim
+```
+
+#assign character attributes to factor, check data types
+```{r}
+data22$AEZ16_CLAS = factor(data22$AEZ16_CLAS)
+data22$AEZ8_CLAS = factor(data22$AEZ8_CLAS)
+data22$FS_2012_TX = factor(data22$FS_2012_TX)
+sapply(data22, class)
+```
+
+#subset rows by filtering dependent variable = 0
+
+```{r}
+data22_agro <- data22 %>% filter(vp_cr_ar_r > 0)
+str(data22_agro)
+sum(is.na(data22_agro$AEZ8_CLAS) == TRUE)
+sum(is.na(data22_agro$AEZ16_CLAS) == TRUE)
+sum(is.na(data22_agro$pre_mean) == TRUE)
+sum(is.na(data22_agro$LGP_AVG) == TRUE)
+sum(is.na(data22_agro$ELEVATION) == TRUE)
+sum(is.na(data22_agro$SLOPE) == TRUE)
+sum(is.na(data22_agro$FS_2012_TX) == TRUE)
+sum(is.na(data22_agro$soc_d5) == TRUE)
+sum(is.na(data22_agro$soc_d15) == TRUE)
+sum(is.na(data22_agro$soc_d30) == TRUE)
+sum(is.na(data22_agro$soc_d60) == TRUE)
+sum(is.na(data22_agro$soc_d100) == TRUE)
+sum(is.na(data22_agro$soc_d200) == TRUE)
+sum(is.na(data22_agro$PN05_TOT) == TRUE)
+sum(is.na(data22_agro$PN05_RUR) == TRUE)
+sum(is.na(data22_agro$UPCX08_11) == TRUE)
+sum(is.na(data22_agro$RPCX08_11) == TRUE)
+sum(is.na(data22_agro$TT_PORT) == TRUE)
+sum(is.na(data22_agro$TT_20K) == TRUE)
+```
+
+#remove income RPCX08_11
+```{r}
+data21_agro <- data22_agro[, -20]
+
+```
+
+#remove rows with at least one missing values
+```{r}
+data21_agro_na <- rowSums(is.na(data21_agro))
+data21_agro_1na <- data21_agro_na >= 1
+data21_agro_na_rm <- data21_agro[!data21_agro_1na,]
+str(data21_agro_na_rm)
+write.csv(data21_agro_na_rm, 'c:/work/source/cell5m_21_na_rm.csv')
+```
+
+#histogram for dependent variable
+
+```{r}
+hist(data21_agro_na_rm$vp_cr_ar_r, main = "Histogram: Crop Value Per Ha (Dependent Variable)")
+
+```
+#univariant box plots on log(10) scale
+```{r}
+library(ggplot2)
+ggplot(data21_agro_na_rm, aes(y=vp_cr_ar_r), main = "Boxplot: Crop Value Per Ha (Dependent Variable)")+geom_boxplot()+scale_y_log10()
+ggplot(data21_agro_na_rm, aes(y=TT_PORT))+geom_boxplot()
+ggsave("boxplot_vp_cr_ar_r.png", width=5, height = 5)
+
+```
+
+#bivariant box plots 
+```{r}
+boxplot(vp_cr_ar_r~AEZ16_CLAS, data=data21_agro_na_rm, main = "Box Plots: Crop Values of Agroecological Zones")
+boxplot(vp_cr_ar_r~FS_2012_TX, data=data21_agro_na_rm, main = "Box Plots: Crop Values of Farming Systems")
+
+```
+
+#bivariant: scatter plots
+```{r}
+ggplot(data21_agro_na_rm, aes(SLOPE, vp_cr_ar_r)) + geom_point() + scale_y_log10() + scale_x_log10()
+ggplot(data21_agro_na_rm, aes(pre_mean, vp_cr_ar_r)) + geom_point() + scale_y_log10() 
+ggplot(data21_agro_na_rm, aes(LGP_AVG, pre_mean)) + geom_point() + scale_y_log10() + scale_x_log10()
+ggplot(data21_agro_na_rm, aes(LGP_AVG, ELEVATION)) + geom_point() + scale_y_log10() + scale_x_log10()
+ggplot(data21_agro_na_rm, aes(pre_mean, ELEVATION)) + geom_point() + scale_y_log10() + scale_x_log10()
+ggplot(data21_agro_na_rm, aes(soc_d100, soc_d200)) + geom_point() + scale_y_log10() + scale_x_log10()
+```
+
+#scatter plots
+```{r}
+panel.cor <- function(x, y, digits=2, prefix="", cex.cor) 
+{
+    usr <- par("usr"); on.exit(par(usr)) 
+    par(usr = c(0, 1, 0, 1)) 
+    r <- abs(cor(x, y)) 
+    txt <- format(c(r, 0.123456789), digits=digits)[1] 
+    txt <- paste(prefix, txt, sep="") 
+    if(missing(cex.cor)) cex <- 0.8/strwidth(txt) 
+ 
+    test <- cor.test(x,y) 
+    # borrowed from printCoefmat
+    Signif <- symnum(test$p.value, corr = FALSE, na = FALSE, 
+                  cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                  symbols = c("***", "**", "*", ".", " ")) 
+ 
+    text(0.5, 0.5, txt, cex = cex * r) 
+    text(.8, .8, Signif, cex=cex, col=2)
+}
+selFea2 <- data21_agro_na_rm[,	c('vp_cr_ar_r', 'soc_d5', 'soc_d30','soc_d60')]
+selFea3 <- data21_agro_na_rm[,	c('vp_cr_ar_r', 'soc_d60', 'soc_d100','soc_d200')]
+selFea4 <- data21_agro_na_rm[,	c('vp_cr_ar_r', 'pre_mean', 'LGP_AVG', 'ELEVATION')]
+selFea5 <- data21_agro_na_rm[,	c('vp_cr_ar_r', 'PN05_TOT', 'PN05_RUR', 'TT_PORT', 'TT_20K')]
+pairs(selFea2, lower.panel=panel.smooth, upper.panel=panel.cor)
+pairs(selFea3, lower.panel=panel.smooth, upper.panel=panel.cor)
+pairs(selFea4, lower.panel=panel.smooth, upper.panel=panel.cor)
+pairs(selFea5, lower.panel=panel.smooth, upper.panel=panel.cor)
+
+
+```
+
+#scatter plot on farming systems
+```{r}
+qplot(x = AEZ8_CLAS, y = AEZ16_CLAS, data= data21_agro_na_rm) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust =1))
+
+```
+#univariant: bar plots
+```{r}
+ggplot(data21_agro_na_rm, aes(x=factor(AEZ16_CLAS))) + geom_bar(stat="count", width=0.7, fill="steelblue")+theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust =1))
+ggplot(data21_agro_na_rm, aes(x=factor(AEZ8_CLAS))) + geom_bar(stat="count", width=0.7, fill="steelblue")+theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust =1))
+ggplot(data21_agro_na_rm, aes(x=factor(FS_2012_TX))) + geom_bar(stat="count", width=0.7, fill="steelblue")+theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust =1))
+
+```
+#remove highly correlated / redundant features: soc_d15, soc_d30, soc_d100
+#remove redundant attribute:AEZ16_CLAS
+
+```{r}
+sub1 <- data21_agro_na_rm[, -13]
+sub2 <- sub1[, -13]
+sub3 <- sub2[, -14]
+sub4 <- sub3[, -6]
+str(sub4)
+summary(sub4)
+```
+#save to file for further analysis
+```{r}
+write.csv(sub4, 'c:/work/source/cell5m_17_na_rm.csv')
+
+```
+
+#bivariant: Spearman correlation
+```{r}
+
+
+```
+
+#normalization: min-max function
+```{r}
+normalize <- function(x) {
+               return ((x - min(x)) / (max(x) - min(x))) }
+
+sub4a_n <- as.data.frame(lapply(sub4[4], normalize))
+sub4b_n <- as.data.frame(lapply(sub4[6:9], normalize))
+sub4c_n <- as.data.frame(lapply(sub4[11:17], normalize))
+sub4_n <- cbind(sub4[1:3], sub4a_n, sub4b_n, sub4c_n, sub4[5], sub4[10])
+str(sub4_n)
+summary(sub4_n)
+hist(sub4_n$vp_cr_ar_r)
+var(sub4_n$vp_cr_ar_r)
+hist(sub4_n$pre_mean)
+var(sub4_n$pre_mean)
+hist(sub4_n$LGP_AVG)
+var(sub4_n$LGP_AVG)
+hist(sub4_n$ELEVATION)
+var(sub4_n$ELEVATION)
+hist(sub4_n$SLOPE)
+var(sub4_n$SLOPE)
+hist(sub4_n$soc_d5)
+var(sub4_n$soc_d5)
+hist(sub4_n$soc_d60)
+var(sub4_n$soc_d60)
+hist(sub4_n$soc_d200)
+var(sub4_n$soc_d200)
+hist(sub4_n$PN05_TOT)
+var(sub4_n$PN05_TOT)
+hist(sub4_n$PN05_RUR)
+var(sub4_n$PN05_RUR)
+hist(sub4_n$TT_PORT)
+var(sub4_n$TT_PORT)
+hist(sub4_n$TT_20K)
+var(sub4_n$TT_20K)
+```
+
+#save to file, *norm.csv
+```{r}
+write.csv(sub4_n, 'c:/work/source/cell5m_17_na_rm_norm.csv')
+
+```
+
+#log+1 transformation
+#Note: after normalization to 0 - 1, log+1 no longer make sense
+```{r}
+vp_lg1 <- transform(sub4_n$vp_cr_ar_r, method=c("log+1"))
+hist(sub4_n$vp_cr_ar_r)
+hist(vp_lg1)
+pre_lg1 <- transform(sub4_n$pre_mean, method=c("log+1"))
+hist(pre_lg1)
+elev_lg1 <- transform(sub4_n$ELEVATION, method=c("log+1"))
+hist(elev_lg1)
+#produced 1 NA, remove NA
+elev_lg1_na <- is.na(elev_lg1)
+#replace 1 na to 0 
+elev_lg1[which(is.na(elev_lg1))] = 0
+#check
+elev_lg1_na <- is.na(elev_lg1)
+sum(elev_lg1_na)
+
+slop_lg1 <- transform(sub4_n$SLOPE, method=c("log+1"))
+hist(slop_lg1)
+soc5_lg1 <- transform(sub4_n$soc_d5, method=c("log+1"))
+hist(soc5_lg1)
+soc60_lg1 <- transform(sub4_n$soc_d60, method=c("log+1"))
+hist(soc60_lg1)
+soc200_lg1 <- transform(sub4_n$soc_d200, method=c("log+1"))
+hist(soc200_lg1)
+PNT_lg1 <- transform(sub4_n$PN05_TOT, method=c("log+1"))
+hist(PNT_lg1)
+PNR_lg1 <- transform(sub4_n$PN05_RUR, method=c("log+1"))
+hist(PNT_lg1)
+TPORT_lg1 <- transform(sub4_n$TT_PORT, method=c("log+1"))
+hist(TPORT_lg1)
+T20k_lg1 <- transform(sub4_n$TT_20K, method=c("log+1"))
+hist(T20k_lg1)
+hist(sub4$TT_20K)
+
+
+PNR_lg1 <- transform(sub4$PN05_RUR, method=c("log+1"))
+hist(PNT_lg1)
+var(PNT_lg1)
+```
+#standardization or zscore normalization, output file *stand.csv
+```{r}
+standardize <- function(x) {
+               return ((x - mean(x)) / sd(x))}
+
+sub4a_s <- as.data.frame(lapply(sub4[4], standardize))
+sub4b_s <- as.data.frame(lapply(sub4[6:9], standardize))
+sub4c_s <- as.data.frame(lapply(sub4[11:17], standardize))
+sub4_s <- cbind(sub4[1:3], sub4a_s, sub4b_s, sub4c_s, sub4[5], sub4[10])
+str(sub4_s)
+summary(sub4_s)
+write.csv(sub4_s, 'c:/work/source/cell5m_17_na_rm_stand.csv')
+```
+
+#sqrt transformation
+```{r}
+elev_sqrt <- transform(sub4_n$ELEVATION, method=c("sqrt"))
+hist(elev_sqrt)
+#na produced, check
+elev_sqrt_na <- is.na(elev_sqrt)
+sum(elev_sqrt_na)
+#replace 1 na with 0
+elev_sqrt[which(is.na(elev_sqrt))] = 0
+#check
+elev_sqrt_na <- is.na(elev_sqrt)
+sum(elev_sqrt_na)
+slop_sqrt <- transform(sub4_n$SLOPE, method=c("sqrt"))
+hist(slop_sqrt)
+
+```
+
+#check population variance and distribution, after normalization/standardization/lg and sqr transformed
+```{r}
+var(sub4_n$SLOPE)
+var(sub4_s$SLOPE)
+var(slop_lg1)
+var(slop_sqrt)
+hist(sub4_n$SLOPE)
+hist(sub4_s$SLOPE)
+hist(slop_lq1)
+hist(slop_sqrt)
+var(sub4_n$ELEVATION)
+var(sub4_s$ELEVATION)
+var(elev_lg1)
+var(elev_sqrt)
+hist(sub4_n$ELEVATION)
+hist(sub4_s$ELEVATION)
+hist(elev_lq1)
+hist(elev_sqrt)
+var(sub4_n$PN05_TOT)
+var(sub4_s$PN05_TOT)
+var(PNT_lg1)
+hist(sub4_n$PN05_TOT)
+hist(sub4_s$PN05_TOT)
+hist(PNT_lg1)
+var(sub4_n$PN05_RUR)
+var(sub4_s$PN05_RUR)
+var(PNR_lg1)
+hist(sub4_n$PN05_RUR)
+hist(sub4_s$PN05_RUR)
+hist(PNR_lg1)
+var(sub4_n$vp_cr_ar_r)
+var(sub4_s$vp_cr_ar_r)
+var(vp_lg1)
+hist(sub4_n$vp_cr_ar_r)
+hist(sub4_s$vp_cr_ar_r)
+hist(vp_lg1)
+var(sub4_n$pre_mean)
+var(sub4_s$pre_mean)
+hist(sub4_n$pre_mean)
+hist(sub4_s$pre_mean)
+var(sub4_n$LGP_AVG)
+var(sub4_s$LGP_AVG)
+hist(sub4_n$LGP_AVG)
+hist(sub4_s$LGP_AVG)
+var(sub4_n$soc_d5)
+var(sub4_s$soc_d5)
+var(soc5_lg1)
+hist(sub4_n$soc_d5)
+hist(sub4_s$soc_d5)
+hist(soc5_lg1)
+var(sub4_n$soc_d60)
+var(sub4_s$soc_d60)
+var(soc60_lg1)
+hist(sub4_n$soc_d60)
+hist(sub4_s$soc_d60)
+hist(soc60_lg1)
+var(sub4_n$soc_d200)
+var(sub4_s$soc_d200)
+var(soc200_lg1)
+hist(sub4_n$soc_d200)
+hist(sub4_s$soc_d200)
+hist(soc200_lg1)
+var(sub4_n$TT_PORT)
+var(sub4_s$TT_PORT)
+var(TPORT_lg1)
+hist(sub4_n$TT_PORT)
+hist(sub4_s$TT_PORT)
+hist(TPORT_lg1)
+var(sub4_n$TT_20K)
+var(sub4_s$TT_20K)
+var(T20k_lg1)
+hist(sub4_n$TT_20K)
+hist(sub4_s$TT_20K)
+hist(T20K_lg1)
+
+
+```
+
+#create transformed df1 (without factor attributes), df2 (all 17 attributes). output df2 *log1.csv
+```{r}
+
+AEZ8_CLAS <- sub4_n$AEZ8_CLAS
+pre_mean <- sub4_n$pre_mean
+LGP_AVG <- sub4_n$LGP_AVG
+FS_2012_TX <- sub4_n$FS_2012_TX
+df1 <- cbind(sub4_n[, 1:3], vp_lg1, pre_mean, LGP_AVG, elev_sqrt, slop_sqrt, soc5_lg1, soc60_lg1, soc200_lg1, PNT_lg1, PNR_lg1, TPORT_lg1, T20k_lg1)
+str(df1)
+summary(df1)
+write.csv(df1, 'c:/work/source/cell5m_15_na_rm_tran.csv')
+
+df2 <- cbind(sub4_n[, 1:3], vp_lg1, AEZ8_CLAS, pre_mean, LGP_AVG, elev_sqrt, slop_sqrt, FS_2012_TX, soc5_lg1, soc60_lg1, soc200_lg1, PNT_lg1, PNR_lg1, TPORT_lg1, T20k_lg1)
+str(df2)
+summary(df2)
+write.csv(df2, 'c:/work/source/cell5m_17_na_rm_tran.csv')
+```
+
+#pearson vs spearman correlation (non-normal, non-parametric or presence of outliers)
+#try panel.cor() and pairs() function to run spearman?
+```{r}
+#rcorr(as.matrix(df1))
+#rcorr(as.matrix(sub4))
+#error: NAs introduced by coercionError in rcorr(as.matrix(sub4)): NA/NaN/Inf in foreign function call (arg1)
+#rcorr(df1, type = c("spearman"))
+#error: Error in storage.mode(x) <- "double": 'list' object cannot be coerced to type 'double'
+```
+
+#change dependent attribute to factors using quantile binning from package dlookr: normalized and norm+log+1  transformed
+```{r}
+library(dlookr)
+
+vp_n_bin <- binning (
+  sub4_n$vp_cr_ar_r,
+  4, 
+  type = c("quantile"),
+  ordered = TRUE,
+  labels = NULL,
+  approxy.lab = TRUE
+)
+summary(vp_n_bin)
+
+
+vp_s_bin <- binning (
+  sub4_s$vp_cr_ar_r,
+  4, 
+  type = c("quantile"),
+  ordered = TRUE,
+  labels = NULL,
+  approxy.lab = TRUE
+)
+summary(vp_s_bin)
+
+vp_lg1_bin <- binning (
+  df2$vp_lg1,
+  4, 
+  type = c("quantile"),
+  ordered = TRUE,
+  labels = NULL,
+  approxy.lab = TRUE
+)
+summary(vp_lg1_bin)
+```
+
+create new dataframes with binned dependent attributes
+```{r}
+df3 <- cbind(sub4_n[, 1:3], vp_lg1_bin, pre_mean, LGP_AVG, elev_sqrt, slop_sqrt, soc5_lg1, soc60_lg1, soc200_lg1, PNT_lg1, PNR_lg1, TPORT_lg1, T20k_lg1)
+str(df3)
+summary(df3)
+write.csv(df3, 'c:/work/source/cell5m_15_na_rm_tran_binnedTarget.csv')
+df4 <- cbind(sub4_n[, 1:3], vp_lg1_bin,  pre_mean, LGP_AVG, elev_sqrt, slop_sqrt, soc5_lg1, soc60_lg1, soc200_lg1, PNT_lg1, PNR_lg1, TPORT_lg1, T20k_lg1, AEZ8_CLAS,FS_2012_TX)
+str(df4)
+summary(df4)
+write.csv(df4, 'c:/work/source/cell5m_17_na_rm_tran_binnedTarget.csv')
+
+
+df5 <- cbind(sub4_n[, 1:3], vp_n_bin, sub4b_n, sub4c_n, sub4[5], sub4[10])
+write.csv(df5, 'c:/work/source/cell5m_17_na_rm_norm_binnedTarget.csv')
+df6 <- cbind(sub4_n[, 1:3], vp_n_bin, sub4b_n, sub4c_n)
+write.csv(df6, 'c:/work/source/cell5m_15_na_rm_norm_binnedTarget.csv')
+
+df7 <- cbind(sub4_s[, 1:3], vp_s_bin, sub4b_s, sub4c_s, sub4[5], sub4[10])
+write.csv(df7, 'c:/work/source/cell5m_17_na_rm_stand_binnedTarget.csv')
+df8 <- cbind(sub4_s[, 1:3], vp_s_bin, sub4b_s, sub4c_s)
+write.csv(df8, 'c:/work/source/cell5m_15_na_rm_stand_binnedTarget.csv')
+```
+#binning independent attributes 
+(this is not used )
+```{r}
+pre_mean_bin <- binning (
+  df2$pre_mean,
+  4, 
+  type = c("quantile"),
+  ordered = TRUE,
+  labels = NULL,
+  approxy.lab = TRUE
+)
+summary(pre_mean_bin)
+
+LGP_AVG_bin <- binning (
+  df2$LGP_AVG,
+  4, 
+  type = c("quantile"),
+  ordered = TRUE,
+  labels = NULL,
+  approxy.lab = TRUE
+)
+summary(LGP_AVG_bin)
+
+elev_sqrt_bin <- binning (
+  df2$elev_sqrt,
+  4, 
+  type = c("quantile"),
+  ordered = TRUE,
+  labels = NULL,
+  approxy.lab = TRUE
+)
+summary(elev_sqrt_bin)
+
+slop_sqrt_bin <- binning (
+  df2$slop_sqrt,
+  4, 
+  type = c("quantile"),
+  ordered = TRUE,
+  labels = NULL,
+  approxy.lab = TRUE
+)
+summary(slop_sqrt_bin)
+
+soc5_lg1_bin <- binning (
+  df2$soc5_lg1,
+  4, 
+  type = c("quantile"),
+  ordered = TRUE,
+  labels = NULL,
+  approxy.lab = TRUE
+)
+summary(soc5_lg1_bin)
+
+soc60_lg1_bin <- binning (
+  df2$soc60_lg1,
+  4, 
+  type = c("quantile"),
+  ordered = TRUE,
+  labels = NULL,
+  approxy.lab = TRUE
+)
+summary(soc60_lg1_bin)
+
+soc200_lg1_bin <- binning (
+  df2$soc200_lg1,
+  4, 
+  type = c("quantile"),
+  ordered = TRUE,
+  labels = NULL,
+  approxy.lab = TRUE
+)
+summary(soc200_lg1_bin)
+
+```
+
+
+

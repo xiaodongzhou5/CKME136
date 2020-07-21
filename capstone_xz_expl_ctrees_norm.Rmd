@@ -1,0 +1,124 @@
+---
+title: "capstone_xz_expln_decisionTr"
+output: word_document
+---
+
+
+```{r cars}
+install.packages('party')
+library(party)
+```
+
+
+read data set 
+```{r}
+df_norm_bin <- read.csv(file ='c:/work/source/cell5m_17_na_rm_norm_binnedTarget.csv', stringsAsFactors = TRUE)
+str(df_norm_bin)
+```
+
+Using the 'ctree' function: 1) model 1 with all 13 attributes 2) model 2 exclude factor attributes 
+```{r}
+library(party)
+data_ctree1 <- ctree(vp_n_bin ~  pre_mean + LGP_AVG + ELEVATION + SLOPE + soc_d5 + soc_d60 + soc_d200 + PN05_TOT + PN05_RUR + TT_PORT + TT_20K + AEZ8_CLAS + FS_2012_TX, data = df_norm_bin)
+
+data_ctree2 <- ctree(vp_n_bin ~  pre_mean + LGP_AVG + ELEVATION + SLOPE + soc_d5 + soc_d60 + soc_d200 + PN05_TOT + PN05_RUR + TT_PORT + TT_20K, data = df_norm_bin)
+```
+
+print the decision tree.
+```{r}
+print(data_ctree1)
+print(data_ctree2)
+```
+
+plot the decision tree.
+```{r}
+plot(data_ctree1, type="simple")
+plot(data_ctree2, type="simple")
+```
+
+Use decision trees as classifiers. split the dataset into training and test set.
+```{r}
+train_index1 <- sample(1:nrow(df_norm_bin), 0.7 * nrow(df_norm_bin))
+train.set1 <- df_norm_bin[train_index1,]
+test.set1  <- df_norm_bin[-train_index1,]
+```
+
+run model on the training set, use all 13 independent variables
+```{r}
+str(df_norm_bin)
+data_ctree_model1 <- ctree(vp_n_bin ~  pre_mean + LGP_AVG + ELEVATION + SLOPE + soc_d5 + soc_d60 + soc_d200 + PN05_TOT + PN05_RUR + TT_PORT + TT_20K + AEZ8_CLAS + FS_2012_TX, data=train.set1)
+data_ctree_model1
+```
+top 8 attributes with high entropy (or information gain): FX_2012_TX, AEZ8_CLAS, LGP_AVG, TT_PORT, pre_mean, ELEVATION, soc_d200, PN05_RUR, TT_20K, soc_d60
+
+make prediction on the test set.
+```{r}
+data_ctree_prediction1 <- predict(data_ctree_model1, test.set1) 
+# gives the probability for each class
+head(data_ctree_prediction1)
+```
+
+review the confusion matrix.
+```{r}
+table(data_ctree_prediction1, test.set1$vp_n_bin)
+```
+To do: calculate accuracy and precision etc.
+
+feature engineering
+```{r}
+df_norm_bin$soc_avg <- c((df_norm_bin$soc_d5+df_norm_bin$soc_d60+df_norm_bin$soc_d200)/3)
+df_norm_bin$TT_avg <- c((df_norm_bin$TT_PORT+df_norm_bin$TT_20K)/2)
+df_norm_bin$TT_min <- with(df_norm_bin, ifelse(df_norm_bin$TT_PORT <= df_norm_bin$TT_20K, df_norm_bin$TT_PORT, df_norm_bin$TT_20K))
+summary(df_norm_bin)
+str(df_norm_bin)
+```
+
+Using the 'ctree' function, model 3 with selected 8 features (including 2 engineered features)
+```{r}
+library(party)
+
+memory.size(max = TRUE)
+memory.limit(size = 45000)
+
+data_ctree3 <- ctree(vp_n_bin ~  pre_mean + LGP_AVG + ELEVATION + soc_avg + PN05_RUR + TT_min + AEZ8_CLAS + FS_2012_TX, data = df_norm_bin)
+
+```
+
+print the decision tree.
+```{r}
+print(data_ctree3)
+
+```
+
+#plot the decision tree.
+```{r}
+plot(data_ctree3, type="simple")
+
+```
+
+#Use decision trees as classifiers. split the dataset into training and test set.
+```{r}
+train_index3 <- sample(1:nrow(df_norm_bin), 0.7 * nrow(df_norm_bin))
+train.set3 <- df_norm_bin[train_index3,]
+test.set3  <- df_norm_bin[-train_index3,]
+```
+
+#run model on the training set.
+```{r}
+str(df_norm_bin)
+data_ctree_model3 <- ctree(vp_n_bin ~  pre_mean + LGP_AVG + ELEVATION + soc_avg + PN05_RUR + TT_min + AEZ8_CLAS + FS_2012_TX, data=train.set3)
+data_ctree_model3
+```
+
+make prediction on the test set.
+```{r}
+data_ctree_prediction3 <- predict(data_ctree_model3, test.set3) 
+# gives the probability for each class
+head(data_ctree_prediction3)
+```
+
+review the confusion matrix.
+```{r}
+table(data_ctree_prediction3, test.set3$vp_n_bin)
+```
+#model 3 gives slightly improved results for classes 1 and 2, but less favorable for classes 3 and 4.

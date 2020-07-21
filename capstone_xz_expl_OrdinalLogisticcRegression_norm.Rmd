@@ -1,0 +1,107 @@
+---
+title: "capstone_xz_ml"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+install.packages('dlookr')
+library(dlookr)
+install.packages('RCurl')
+install.packages('MASS')
+install.packages('leaps')
+library(RCurl) # getURL 
+library(MASS) # stepwise regression
+library(leaps) # all subsets regression
+```
+
+# read *norm file, 
+```{r}
+df_norm <- read.csv(file ='c:/work/source/cell5m_17_na_rm_norm_binnedTarget.csv',stringsAsFactors = TRUE)
+df_norm$vp_n_bin <- ordered(df_norm$vp_n_bin)
+str(df_norm)
+summary(df_norm)
+```
+
+
+## subset data
+
+```{r}
+data_train <- sample(nrow(df_norm), floor(nrow(df_norm)*0.7))
+train <- df_norm[data_train,]
+test <- df_norm[-data_train,]
+```
+
+ordinal logistic regression model to predict 'vp' variable. 
+```{r}
+library(MASS)
+model_polr_norm <- polr(vp_n_bin~.-X-CELL5M-x-y, data=train) 
+prediction_norm <- predict(model_polr_norm, interval="prediction", newdata =test)
+```
+
+#plot error on a histogram. 
+```{r}
+errors_norm <- prediction_norm[,"fit"] - test$vp_n_bin
+hist(errors_norm)
+```
+#unable to fix the above error
+
+#Compute the root mean square error and find the percentage of cases with less than 25% error.
+```{r}
+rmse <- sqrt(sum((prediction_norm[,"fit"] - test$vp_n_bin)^2)/nrow(test))
+rel_change <- 1 - ((test$vp_n_bin - abs(errors)) / test$vp_n_bin)
+pred25 <- table(rel_change<0.25)["TRUE"] / nrow(test)
+paste("RMSE:", rmse)
+paste("PRED(25):", pred25)
+```
+#unable to fix the above error
+
+#Forward selection algorithm. start with 'null', to come up with a selection of independent variables between 'null' and 'full'. 
+```{r echo=TRUE}
+library(MASS)
+full_norm <- polr(vp_n_bin~.-X-CELL5M-x-y, data=df_norm)
+null_norm <- polr(vp_n_bin~1,data=df_norm)
+stepF_norm <- stepAIC(null_norm, scope=list(lower=null_norm, upper=full_norm), direction= "forward", trace=TRUE)
+summary(stepF_norm)
+```
+#to do: calculate the missing p values to check significance
+
+#'backward' elimination, which will start with 'full'.
+```{r echo=TRUE}
+full_norm <- polr(vp_n_bin~.-X-CELL5M-x-y, data=df_norm)
+stepB_norm <- stepAIC(full_norm, direction= "backward", trace=TRUE)
+summary(stepB_norm)
+```
+#to do: calculate the missing p values to check significance
+
+#test the best combination of the attributes.
+```{r}
+library(leaps)
+subsets<-regsubsets(vp_n_bin~.-X-CELL5M-x-y, data=df_norm, nbest=1,)
+sub.sum <- summary(subsets)
+as.data.frame(sub.sum$outmat)
+
+
+```
+In the output * denotes the included variables.
+
+The best combination of attributes is: 'pre_mean', 'TT_20K', and some factors of 'AEZ8_CLAS' and 'FS_2012_TX'
+however, factor attributes 'AEZ8_CLAS' and 'FS_2012_TX' accounts for 20 out of 30 attributes, it seems to overwhelm the other attributes.  In this context, it is important to note that 'pre_mean' and 'TT_20K' still stand out as very significant attributes.
+
+
+
+
+
+
+
+
+
