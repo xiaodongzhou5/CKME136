@@ -1,0 +1,91 @@
+---
+title: "capstone_xz_ml"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+install.packages('dlookr')
+library(dlookr)
+install.packages('RCurl')
+install.packages('MASS')
+install.packages('leaps')
+library(RCurl) # getURL 
+library(MASS) # stepwise regression
+library(leaps) # all subsets regression
+```
+
+# read *norm file, 
+```{r}
+df_norm <- read.csv(file ='c:/work/source/cell5m_17_na_rm_norm_binnedTarget.csv',stringsAsFactors = TRUE)
+df_norm$vp_n_bin <- factor(df_norm$vp_n_bin, order = TRUE, levels = c('[0,0.0211]', '(0.0211,0.0376]', '(0.0376,0.0607]', '(0.0607,1]'))
+str(df_norm)
+summary(df_norm)
+```
+
+
+## subset data
+
+```{r}
+data_train <- sample(nrow(df_norm), floor(nrow(df_norm)*0.7))
+train <- df_norm[data_train,]
+test <- df_norm[-data_train,]
+```
+
+ordinal logistic regression model to predict 'vp' variable. 
+```{r}
+library(MASS)
+model_polr_norm <- polr(vp_n_bin~.-X-CELL5M-x-y, data=train, Hess = TRUE)
+summary(model_polr_norm)
+prediction_norm <- predict(model_polr_norm, interval="prediction", newdata =test)
+```
+Calculate the significance of coefficients and intercepts
+```{r}
+summary_table <- coef(summary(model_polr_norm))
+pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+summary_table <- cbind(summary_table, "p value" = round(pval,3))
+summary_table
+
+```
+#Forward selection algorithm. start with 'null', to come up with a selection of independent variables between 'null' and 'full'. 
+```{r echo=TRUE}
+library(MASS)
+full_norm <- polr(vp_n_bin~.-X-CELL5M-x-y, data=df_norm)
+null_norm <- polr(vp_n_bin~1,data=df_norm)
+stepF_norm <- stepAIC(null_norm, scope=list(lower=null_norm, upper=full_norm), direction= "forward", trace=TRUE)
+summary(stepF_norm)
+```
+
+#'backward' elimination, which will start with 'full'.
+```{r echo=TRUE}
+full_norm <- polr(vp_n_bin~.-X-CELL5M-x-y, data=df_norm)
+stepB_norm <- stepAIC(full_norm, direction= "backward", trace=TRUE)
+summary(stepB_norm)
+```
+
+#test the best combination of the attributes.
+```{r}
+library(leaps)
+subsets<-regsubsets(vp_n_bin~.-X-CELL5M-x-y, data=df_norm, nbest=1,)
+sub.sum <- summary(subsets)
+as.data.frame(sub.sum$outmat)
+
+
+```
+In the output * denotes the included variables.
+
+The best combination of attributes is: 'pre_mean', 'TT_20K', and some factors of 'AEZ8_CLAS' and 'FS_2012_TX'
+however, factor attributes 'AEZ8_CLAS' and 'FS_2012_TX' accounts for 20 out of 30 attributes, it seems to overwhelm the other attributes.  In this context, it is important to note that 'pre_mean' and 'TT_20K' still stand out as very significant attributes.
+
+
+
+
+
+
+
+
+

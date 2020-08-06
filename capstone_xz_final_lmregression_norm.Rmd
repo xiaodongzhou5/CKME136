@@ -1,0 +1,177 @@
+---
+title: "capstone_xz_ml"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+install.packages('dlookr')
+library(dlookr)
+install.packages('RCurl')
+install.packages('MASS')
+install.packages('leaps')
+library(RCurl) # getURL 
+library(MASS) # stepwise regression
+library(leaps) # all subsets regression
+```
+
+# read *norm file, 
+```{r}
+df_norm <- read.csv(file ='c:/work/source/cell5m_17_na_rm_norm.csv',stringsAsFactors = TRUE)
+str(df_norm)
+summary(df_norm)
+
+
+```
+
+
+## subset training data for multiple linear regression
+
+```{r}
+data_train <- sample(nrow(df_norm), floor(nrow(df_norm)*0.7))
+train <- df_norm[data_train,]
+test <- df_norm[-data_train,]
+```
+
+multiple linear regression model to predict 'vp' variable. 
+```{r}
+model_mlr_norm <- lm(vp_cr_ar_r~pre_mean+LGP_AVG+ELEVATION+SLOPE+soc_d5+soc_d60+soc_d200+PN05_TOT+PN05_RUR+TT_PORT+TT_20K, data=train) 
+prediction_norm <- predict(model_mlr_norm, interval="prediction", newdata =test)
+```
+
+#plot error on a histogram. 
+```{r}
+residual_error <- prediction_norm[,"fit"] - test$vp_cr_ar_r
+hist(residual_error)
+plot(prediction_norm[,"fit"], residual_error)
+plot(prediction_norm[,"fit"], test$vp_cr_ar_r)
+plot(test$vp_cr_ar_r, residual_error)
+```
+#note that the residual error shown above is not normally distributed.  residuals are not randomly distributed: prediction is mostly lower than actual and it tends to be much lower than the actual bewtween 0.02 - 0.08, suggesting the data set does not meet the assumptions required for lm regression.
+
+the log(x+1) and sqrt transformed data in this case yielded normally distributed residual error. 
+
+
+#Compute the root mean square error and find the percentage of cases with less than 25% error.
+```{r}
+rmse <- sqrt(sum((prediction_norm[,"fit"] - test$vp_cr_ar_r)^2)/nrow(test))
+rel_change <- 1 - ((test$vp_cr_ar_r - abs(errors)) / test$vp_cr_ar_r)
+pred25 <- table(rel_change<0.25)["TRUE"] / nrow(test)
+paste("RMSE:", rmse)
+paste("PRED(25):", pred25)
+```
+
+#Forward selection algorithm. start with 'null', to come up with a selection of independent variables between 'null' and 'full'. 
+```{r echo=TRUE}
+library(MASS)
+full_norm <- lm(vp_cr_ar_r~pre_mean+LGP_AVG+ELEVATION+SLOPE+soc_d5+soc_d60+soc_d200+PN05_TOT+PN05_RUR+TT_PORT+TT_20K, data=df_norm)
+null_norm <- lm(vp_cr_ar_r~1,data=df_norm)
+stepF_norm <- stepAIC(null_norm, scope=list(lower=null_norm, upper=full_norm), direction= "forward", trace=TRUE)
+summary(stepF_norm)library(MASS)
+```
+#Lowest AIC is to use all variables.  trace = T to see all steps.  
+
+#'backward' elimination, which will start with 'full'.
+```{r echo=TRUE}
+full_norm <- lm(vp_cr_ar_r~pre_mean+LGP_AVG+ELEVATION+SLOPE+soc_d5+soc_d60+soc_d200+PN05_TOT+PN05_RUR+TT_PORT+TT_20K,data=df_norm)
+stepB_norm <- stepAIC(full_norm, direction= "backward", trace=TRUE)
+summary(stepB_norm)
+```
+#Use all the variables except "slope" (p > 0.05).
+
+#test the best combination of the 12 attributes.
+```{r}
+library(leaps)
+subsets<-regsubsets(vp_cr_ar_r~pre_mean+LGP_AVG+ELEVATION+SLOPE+soc_d5+soc_d60+soc_d200+PN05_TOT+PN05_RUR+TT_PORT+TT_20K, data = df_norm, nbest=1,)
+sub.sum <- summary(subsets)
+as.data.frame(sub.sum$outmat)
+
+
+```
+In the output * denotes the included variables.
+The best combination of 8 attributes is: 'pre_mean', 'LGP_AVG', 'ELEVATION', 'soc_d5', 'PN05_TOT' and 'PN05_RUR', 'TT_PORT' and 'TT_20K'.
+The best combination of 5 attributes is: 'pre_mean', 'LGP_AVG', 'ELEVATION', 'PN05_RUR', 'TT_PORT'.
+
+# remove attributes AVG_LGT and soc_d60, multiple linear regression model to predict 'vp' variable. 
+```{r}
+model_mlr_norm2 <- lm(vp_cr_ar_r~pre_mean+ELEVATION+SLOPE+soc_d5+soc_d200+PN05_TOT+PN05_RUR+TT_PORT+TT_20K, data=train) 
+prediction_norm2 <- predict(model_mlr_norm2, interval="prediction", newdata =test)
+```
+
+#plot error on a histogram. 
+```{r}
+errors_norm2 <- prediction_norm2[,"fit"] - test$vp_cr_ar_r
+hist(errors_norm2)
+```
+# use binned target attribute as numeric. read *norm file, 
+```{r}
+df_norm1 <- read.csv(file ='c:/work/source/cell5m_15_na_rm_norm_binnedTarget.csv',stringsAsFactors = TRUE)
+df_norm1$vp_n_bin <- as.numeric(factor(df_norm1$vp_n_bin, levels = c('[0,0.0211]', '(0.0211,0.0376]', '(0.0376,0.0607]', '(0.0607,1]')))
+str(df_norm1)
+
+```
+## subset training data for multiple linear regression
+
+```{r}
+data_train1 <- sample(nrow(df_norm1), floor(nrow(df_norm1)*0.7))
+train1 <- df_norm1[data_train1,]
+test1 <- df_norm1[-data_train1,]
+```
+
+multiple linear regression model to predict 'vp' variable. 
+```{r}
+model_mlr_norm1 <- lm(vp_n_bin~pre_mean+LGP_AVG+ELEVATION+SLOPE+soc_d5+soc_d60+soc_d200+PN05_TOT+PN05_RUR+TT_PORT+TT_20K, data=train1) 
+prediction_norm1 <- predict(model_mlr_norm1, interval="prediction", newdata =test1)
+```
+
+#plot error on a histogram. 
+```{r}
+residual_error1 <- prediction_norm1[,"fit"] - test1$vp_n_bin
+hist(residual_error1)
+plot(prediction_norm1[,"fit"], residual_error1)
+
+```
+#Forward selection algorithm. start with 'null', to come up with a selection of independent variables between 'null' and 'full'. 
+```{r echo=TRUE}
+library(MASS)
+full_norm1 <- lm(vp_n_bin~pre_mean+LGP_AVG+ELEVATION+SLOPE+soc_d5+soc_d60+soc_d200+PN05_TOT+PN05_RUR+TT_PORT+TT_20K, data=df_norm1)
+null_norm1 <- lm(vp_n_bin~1,data=df_norm1)
+stepF_norm1 <- stepAIC(null_norm1, scope=list(lower=null_norm1, upper=full_norm1), direction= "forward", trace=TRUE)
+summary(stepF_norm1)
+```
+#Lowest AIC is to use all variables except soc-d60.  trace = T to see all steps
+
+#'backward' elimination, which will start with 'full'.
+```{r echo=TRUE}
+full_norm1 <- lm(vp_n_bin~pre_mean+LGP_AVG+ELEVATION+SLOPE+soc_d5+soc_d60+soc_d200+PN05_TOT+PN05_RUR+TT_PORT+TT_20K,data=df_norm1)
+null_norm1 <- lm(vp_n_bin~1,data=df_norm1)
+stepB_norm1 <- stepAIC(full_norm1, scope=list(lower=null_norm1, upper=full_norm1), direction= "backward", trace=TRUE)
+summary(stepB_norm1)
+```
+
+#test the best combination of the 11 attributes.
+```{r}
+library(leaps)
+subsets1<-regsubsets(vp_n_bin~pre_mean+LGP_AVG+ELEVATION+SLOPE+soc_d5+soc_d60+soc_d200+PN05_TOT+PN05_RUR+TT_PORT+TT_20K, data = df_norm1, nbest=1,)
+sub.sum <- summary(subsets1)
+as.data.frame(sub.sum$outmat)
+
+
+
+```
+
+test best subsets
+```{r}
+ols_step_best_subset(full_norm1)
+```
+
+

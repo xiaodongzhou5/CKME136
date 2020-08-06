@@ -1,0 +1,67 @@
+
+---
+title: "K-Nearest Neighbours, normalized data set"
+output: word_document
+---
+
+
+```{r setup, include=FALSE}
+install.packages("class")
+install.packages("gmodels")
+library("class")
+library("gmodels")
+```
+
+Normalized data set will be used.  Factor attributes are excluded.
+```{r}
+df_norm_bin <- read.csv(file ='c:/work/source/cell5m_15_na_rm_norm_binnedTarget.csv')
+df_norm_bin$vp_n_bin <- factor(df_norm_bin$vp_n_bin, levels = c('[0,0.0211]', '(0.0211,0.0376]', '(0.0376,0.0607]', '(0.0607,1]'))
+str(df_norm_bin)
+summary(df_norm_bin)
+```
+
+subset data into training and test set.
+```{r}
+train_index <- sample(1:nrow(df_norm_bin), 0.7 * nrow(df_norm_bin))
+train.set <- df_norm_bin[train_index,]
+test.set  <- df_norm_bin[-train_index,]
+```
+
+remove target and spatial index columns from the training and test datasets.
+```{r}
+train.set_n1 <- train.set[-1]
+train.set_n2 <- train.set_n1[-2]
+train.set_n3 <- train.set_n2[-3]
+train.set_n4 <- train.set_n3[-4]
+train.set_new <- train.set_n4[-5]
+test.set_n1 <- test.set[-1]
+test.set_n2 <- test.set_n1[-2]
+test.set_n3 <- test.set_n2[-3]
+test.set_n4 <- test.set_n3[-4]
+test.set_new <- test.set_n4[-5]
+```
+
+store the labels from our training and test datasets.
+```{r}
+df_train_labels <- train.set$vp_n_bin 
+df_test_labels <- test.set$vp_n_bin
+```
+
+For k=4, 8, 10, 6 and 5, make predication
+```{r}
+df_knn4_prediction <- knn(train = train.set_new, test = test.set_new, cl= df_train_labels, k = 4)
+df_knn6_prediction <- knn(train = train.set_new, test = test.set_new, cl= df_train_labels, k = 6)
+df_knn8_prediction <- knn(train = train.set_new, test = test.set_new, cl= df_train_labels, k = 8)
+df_knn10_prediction <- knn(train = train.set_new, test = test.set_new, cl= df_train_labels, k = 10)
+df_knn5_prediction <- knn(train = train.set_new, test = test.set_new, cl= df_train_labels, k = 5)
+```
+
+calculate the confusion matrix.
+```{r}
+CrossTable(x=df_test_labels, y=df_knn4_prediction, prop.chisq=FALSE)
+CrossTable(x=df_test_labels, y=df_knn6_prediction, prop.chisq=FALSE)
+CrossTable(x=df_test_labels, y=df_knn8_prediction, prop.chisq=FALSE)
+CrossTable(x=df_test_labels, y=df_knn10_prediction, prop.chisq=FALSE)
+CrossTable(x=df_test_labels, y=df_knn5_prediction, prop.chisq=FALSE)
+```
+k=6 gives best model

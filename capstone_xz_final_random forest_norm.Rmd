@@ -1,0 +1,124 @@
+---
+title: "capstone_xz_random_forest"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## install r packages
+
+```{r}
+#install.packages("caret", dependencies = c("Depends", "Suggests"))
+library(caret)
+#install.packages("randomForest")
+library(randomForest)
+#install.packages("doSNOW")
+library(doSNOW)
+#install.packages("xgboost")
+library(xgboost)
+```
+
+
+## read data file
+
+``` {r}
+df_norm_bin <- read.csv(file ='c:/work/source/cell5m_20_na_rm_norm_binnedTarget.csv', stringsAsFactors = TRUE)
+df_norm_bin$vp_n_bin <- factor(df_norm_bin$vp_n_bin, levels = c('[0,0.0211]', '(0.0211,0.0376]', '(0.0376,0.0607]', '(0.0607,1]'))
+str(df_norm_bin)
+
+```
+
+## use Caret to create 70/30 training data, examine the proportions of the target lable across the datasets
+
+``` {r}
+library(caret)
+set.seed(54321)
+indexes <- createDataPartition(df_norm_bin$vp_n_bin, 
+                               times = 1,
+                               p = 0.7,
+                               list = FALSE)
+data.train <- df_norm_bin[indexes,]
+data.test <- df_norm_bin[-indexes,]
+
+prop.table(table(df_norm_bin$vp_n_bin))
+
+
+```
+
+## use Caret to perform 10 fold cross validation repeated 3 times, and to use a grid search for optimal model hyperparamter
+
+``` {r}
+train.control <- trainControl(method = "repeatedcv",
+                              number = 10,
+                              repeats = 3,
+                              search = "grid")
+
+tune.grid <- expand.grid(eta = c(0.05, 0.075, 0.1), 
+                         nrounds = c(50, 75, 100), 
+                         max_depth = 6:8,
+                         min_child_weight = c(2.0, 2.25, 2.5), 
+                         colsample_bytree = c(0.3, 0.4, 0.5),
+                         gamma = 0,
+                         subsample = 1)
+View(tune.grid)
+
+library(doSNOW)
+cl <- makeCluster(10, type = "SOCK")
+```
+
+#bagged tree function, with 10 fold cross validation, tried three models with different inputs 1) 13 orig attributes; 2)7 attributes, incl 2 engineered features excl attributes of mod-high coeff (see ctree) 3) 13 orig att + 2 engineered attributes
+
+``` {r}
+library(caret)
+library(randomForest)
+library(xgboost)
+library(doSNOW)
+registerDoSNOW(cl)
+
+caret.cv1 <- train(vp_n_bin ~.-X.1-X-CELL5M-x-y-soc_avg-TT_min-TT_avg,
+                  data = data.train,
+                  method = "xgbTree",
+                  tunegrid = tune.grid,
+                  trControl = trainControl(
+                    method = "cv",
+                    number = 10, 
+                    verboseIter = TRUE
+                  ))
+
+caret.cv2 <- train(vp_n_bin ~ pre_mean + ELEVATION + soc_avg + PN05_RUR + TT_min + FS_2012_TX + AEZ8_CLAS, 
+                  data = data.train,
+                  method = "xgbTree",
+                  tunegrid = tune.grid,
+                  trControl = trainControl(
+                    method = "cv",
+                    number = 10, 
+                    verboseIter = TRUE
+                  ))
+
+caret.cv3 <- train(vp_n_bin ~. - X.1-X-CELL5M-x-y, 
+                  data = data.train,
+                  method = "xgbTree",
+                  tunegrid = tune.grid,
+                  trControl = trainControl(
+                    method = "cv",
+                    number = 10, 
+                    verboseIter = TRUE
+                  ))
+#StopCluster(cl)
+
+caret.cv1
+caret.cv2
+caret.cv3
+
+preds1 <- predict(caret.cv1, data.test)
+preds2 <- predict(caret.cv2, data.test)
+preds3 <- predict(caret.cv3, data.test)
+
+confusionMatrix(preds1, data.test$vp_n_bin)
+confusionMatrix(preds2, data.test$vp_n_bin)
+confusionMatrix(preds3, data.test$vp_n_bin)
+```
+# The best result is to use all 13 original attributes (model 1), with an accuracy of ~64%
